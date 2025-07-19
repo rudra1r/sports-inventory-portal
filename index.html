@@ -1,0 +1,519 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sports Inventory Management</title>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            margin: 20px; 
+            background-image: url('https://images.pexels.com/photos/47730/the-ball-stadion-football-the-pitch-47730.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1'); 
+            background-size: cover; 
+            background-position: center; 
+            color: #333; 
+        }
+        h1, h2 { color: #333; text-shadow: 1px 1px 2px rgba(0,0,0,0.1); }
+        table { width: 100%; border-collapse: collapse; margin-bottom: 20px; box-shadow: 0 0 10px rgba(0,0,0,0.1); background: rgba(255,255,255,0.9); }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        th { background-color: #f2f2f2; }
+        button { padding: 6px 12px; background-color: #4CAF50; color: white; border: none; cursor: pointer; box-shadow: 0 2px 5px rgba(0,0,0,0.2); }
+        button:hover { background-color: #45a049; }
+        button:disabled { background-color: #ccc; }
+        button.delete { background-color: #f44336; }
+        button.delete:hover { background-color: #da190b; }
+        button.mark-submitted { background-color: #2196F3; }
+        button.mark-submitted:hover { background-color: #0b7dda; }
+        button.reset { background-color: #FF9800; }
+        button.reset:hover { background-color: #f57c00; }
+        button.update-damaged { background-color: #9C27B0; }
+        button.update-damaged:hover { background-color: #7B1FA2; }
+        button.download-excel { background-color: #008CBA; }
+        button.download-excel:hover { background-color: #007BA7; }
+        form { margin-bottom: 20px; }
+        input, select { padding: 6px; margin-right: 10px; }
+        #loginSection { margin-bottom: 20px; border: 1px solid #ddd; padding: 10px; background: rgba(255,255,255,0.9); }
+        #officerTools, #clearLogs { display: none; }
+        .admin-only { display: none; }
+        .admin-only.admin-visible { display: table-cell; }
+        .container { background: rgba(255,255,255,0.8); padding: 20px; border-radius: 10px; }
+        .institute-header { text-align: center; font-size: 2em; font-weight: bold; margin-bottom: 0; }
+        .office-header { text-align: center; font-size: 1.5em; font-weight: bold; margin-top: 0; }
+        .logo { display: block; margin: 0 auto 20px auto; max-width: 400px; width: 100%; height: auto; background-color: #ffffff; }
+        .dashboard { display: flex; justify-content: space-around; margin-bottom: 20px; }
+        .card { background: rgba(255,255,255,0.9); padding: 15px; border: 1px solid #ddd; border-radius: 8px; text-align: center; width: 20%; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        .card h3 { margin: 0 0 10px; color: #333; }
+        .card p { font-size: 1.5em; font-weight: bold; margin: 0; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <img src="https://upload.wikimedia.org/wikipedia/commons/8/81/Jaipuria_Institute_of_management_logo.png" alt="Jaipuria Institute of Management Logo" class="logo">
+        <h1 class="institute-header">Jaipuria Institute of Management, Lucknow</h1>
+        <h2 class="office-header">Office of Student Affairs</h2>
+        <h1>Sports Inventory Management</h1>
+        <p>Welcome! As Dean of Student Affairs, this advanced system provides comprehensive inventory tracking. Students can view and request items; admins manage operations.</p>
+
+        <div id="loginSection">
+            <h2>Admin Login</h2>
+            <form id="loginForm">
+                <input type="text" id="username" placeholder="Username" required>
+                <input type="password" id="password" placeholder="Password" required>
+                <button type="submit">Login</button>
+            </form>
+            <button id="logout" style="display: none; background-color: #f44336;">Logout</button>
+        </div>
+
+        <h2>Inventory Dashboard</h2>
+        <div class="dashboard">
+            <div class="card">
+                <h3>Total Inventory</h3>
+                <p id="totalInventory">0</p>
+            </div>
+            <div class="card">
+                <h3>Total In Use</h3>
+                <p id="totalInUse">0</p>
+            </div>
+            <div class="card">
+                <h3>Total Damaged</h3>
+                <p id="totalDamaged">0</p>
+            </div>
+            <div class="card">
+                <h3>Total Available</h3>
+                <p id="totalAvailable">0</p>
+            </div>
+        </div>
+
+        <h2>Item-wise Inventory Details</h2>
+        <table id="inventoryTable">
+            <thead>
+                <tr>
+                    <th>Item Name</th>
+                    <th class="admin-only">Current Status</th>
+                    <th class="admin-only">Action</th>
+                    <th>Total Inventory</th>
+                    <th>In Use</th>
+                    <th>Damaged</th>
+                    <th>Final Available Inventory</th>
+                </tr>
+            </thead>
+            <tbody></tbody>
+        </table>
+
+        <h2>Request an Item</h2>
+        <form id="requestForm">
+            <select id="requestSelect"></select>
+            <input type="number" id="requestQuantity" placeholder="Quantity" min="1" required>
+            <input type="text" id="requesterName" placeholder="Your Name" required>
+            <input type="text" id="contactNumber" placeholder="Contact Number" required>
+            <button type="submit">Request Use</button>
+        </form>
+
+        <div id="officerTools">
+            <h2>Officer Tools (Admin Only)</h2>
+            <form id="addForm">
+                <input type="text" id="newItemName" placeholder="New Item Name" required>
+                <input type="number" id="newItemQuantity" placeholder="Quantity" min="1" required>
+                <button type="submit">Add Item</button>
+            </form>
+            <button id="resetAll">Mark All as Available</button>
+        </div>
+
+        <h2>Request Logs</h2>
+        <table id="logTable">
+            <thead>
+                <tr>
+                    <th>Name of Requestor</th>
+                    <th>Contact Number</th>
+                    <th>Inventory Requested</th>
+                    <th>Quantity Requested</th>
+                    <th>Requested Date & Time</th>
+                    <th>Submitted Date & Time</th>
+                    <th>Submission Status</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody id="logTbody"></tbody>
+        </table>
+        <button id="clearLogs" class="delete">Clear All Logs</button>
+        <button id="downloadExcel" class="download-excel" style="display: none;">Download Logs as Excel</button>
+    </div>
+
+    <script>
+        const ADMIN_USER = 'Admin';
+        const ADMIN_PASS = 'osa@2023';
+        let isAdmin = false;
+        let inventory = JSON.parse(localStorage.getItem('inventory')) || [
+            { id: 1, name: 'Football', quantity: 10, inUse: 0, damaged: 0 },
+            { id: 2, name: 'Basketball', quantity: 8, inUse: 0, damaged: 0 },
+            { id: 3, name: 'Tennis Racket', quantity: 12, inUse: 0, damaged: 0 },
+            { id: 4, name: 'Volleyball Net', quantity: 5, inUse: 0, damaged: 0 }
+        ];
+        let requests = JSON.parse(localStorage.getItem('requests')) || [];
+        let nextId = inventory.length + 1;
+
+        // Normalize dates to timestamps if necessary
+        requests = requests.map(req => ({
+            ...req,
+            date: typeof req.date === 'string' ? new Date(req.date).getTime() : req.date,
+            submittedDate: typeof req.submittedDate === 'string' ? new Date(req.submittedDate).getTime() : req.submittedDate || null
+        }));
+
+        // Ensure damaged in inventory
+        inventory.forEach(item => {
+            if (item.damaged === undefined) item.damaged = 0;
+        });
+
+        function saveData() {
+            localStorage.setItem('inventory', JSON.stringify(inventory));
+            localStorage.setItem('requests', JSON.stringify(requests));
+        }
+
+        function renderInventory() {
+            const tbody = document.querySelector('#inventoryTable tbody');
+            tbody.innerHTML = '';
+            const select = document.getElementById('requestSelect');
+            select.innerHTML = '<option value="">Select Available Item</option>';
+            let totalInventory = 0;
+            let totalInUse = 0;
+            let totalDamaged = 0;
+            let totalAvailable = 0;
+            inventory.forEach(item => {
+                const available = item.quantity - item.inUse - item.damaged;
+                const row = document.createElement('tr');
+                let actionButtons = '';
+                if (isAdmin) {
+                    actionButtons += `<button onclick="resetItem(${item.id})" ${item.inUse === 0 ? 'disabled' : ''}>Mark Available</button> `;
+                    actionButtons += `<button class="reset" onclick="resetIndividualItem(${item.id})">Reset Values</button> `;
+                    actionButtons += `<input type="number" id="damaged-input-${item.id}" min="0" max="${item.quantity}" placeholder="Set Damaged"> `;
+                    actionButtons += `<button class="update-damaged" onclick="updateDamaged(${item.id})">Update Damaged</button> `;
+                    actionButtons += `<button class="delete" onclick="deleteItem(${item.id})">Delete</button>`;
+                } else if (item.inUse > 0) {
+                    actionButtons = 'In Use';
+                }
+                const inUseCell = (item.inUse > 0 && isAdmin) ? `<a href="#" onclick="showInUseDetails(${item.id})">${item.inUse}</a>` : item.inUse;
+                const damagedCell = (item.damaged > 0 && isAdmin) ? `<a href="#" onclick="showDamagedDetails(${item.id})">${item.damaged}</a>` : item.damaged;
+                row.innerHTML = `
+                    <td>${item.name}</td>
+                    <td class="admin-only ${isAdmin ? 'admin-visible' : ''}">${available > 0 ? 'Available' : 'Fully In Use'}</td>
+                    <td class="admin-only ${isAdmin ? 'admin-visible' : ''}">${actionButtons}</td>
+                    <td>${item.quantity}</td>
+                    <td>${inUseCell}</td>
+                    <td>${damagedCell}</td>
+                    <td>${available}</td>
+                `;
+                tbody.appendChild(row);
+                if (available > 0) {
+                    const option = document.createElement('option');
+                    option.value = item.id;
+                    option.textContent = `${item.name} (Available: ${available})`;
+                    select.appendChild(option);
+                }
+                totalInventory += item.quantity;
+                totalInUse += item.inUse;
+                totalDamaged += item.damaged;
+                totalAvailable += available;
+            });
+            document.getElementById('totalInventory').textContent = totalInventory;
+            document.getElementById('totalInUse').textContent = totalInUse;
+            document.getElementById('totalDamaged').textContent = totalDamaged;
+            document.getElementById('totalAvailable').textContent = totalAvailable;
+        }
+
+        function showInUseDetails(id) {
+            const item = inventory.find(i => i.id === id);
+            if (!item) return;
+            const pending = requests.filter(r => r.item === item.name && !r.returned);
+            if (pending.length === 0) {
+                alert('No items currently in use.');
+                return;
+            }
+            const details = pending.map(r => `${r.name} (${r.contact}) has ${r.quantity} since ${new Date(r.date).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}`).join('\n');
+            alert(`In Use Details for ${item.name}:\n${details}`);
+        }
+
+        function showDamagedDetails(id) {
+            const item = inventory.find(i => i.id === id);
+            if (!item) return;
+            const damagedReqs = requests.filter(r => r.item === item.name && r.returned && r.status === 'Damaged');
+            if (damagedReqs.length === 0) {
+                alert('No damaged items recorded from requests. (Note: Manual damages may not have associated user details.)');
+                return;
+            }
+            const details = damagedReqs.map(r => `${r.name} (${r.contact}) damaged ${r.damagedCount} on ${new Date(r.submittedDate).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}`).join('\n');
+            alert(`Damaged Details for ${item.name}:\n${details}`);
+        }
+
+        function renderLogs() {
+            const tbody = document.getElementById('logTbody');
+            tbody.innerHTML = '';
+            const sortedRequests = [...requests].sort((a, b) => {
+                const timeA = a.submittedDate || a.date;
+                const timeB = b.submittedDate || b.date;
+                return timeB - timeA;
+            });
+            sortedRequests.forEach((req) => {
+                const index = requests.findIndex(r => r.date === req.date && r.name === req.name && r.contact === req.contact);
+                const row = document.createElement('tr');
+                let actionUI = '';
+                if (isAdmin && !req.returned) {
+                    actionUI = `
+                        <select id="status-${index}">
+                            <option value="Working">Working Received</option>
+                            <option value="Damaged">Damaged Received</option>
+                        </select>
+                        <input id="damaged-${index}" type="number" min="1" max="${req.quantity}" style="display:none;" placeholder="Damaged Count">
+                        <button type="button" class="mark-submitted" onclick="markSubmitted(${index})">Submit</button>
+                    `;
+                }
+                let submissionStatus = '-';
+                if (req.returned) {
+                    submissionStatus = req.status === 'Working' ? 'Working Received' : `Damaged Received (${req.damagedCount})`;
+                }
+                row.innerHTML = `
+                    <td>${req.name}</td>
+                    <td>${req.contact}</td>
+                    <td>${req.item}</td>
+                    <td>${req.quantity}</td>
+                    <td>${req.date ? new Date(req.date).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }) : '-'}</td>
+                    <td>${req.submittedDate ? new Date(req.submittedDate).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }) : '-'}</td>
+                    <td>${submissionStatus}</td>
+                    <td>${actionUI}</td>
+                `;
+                tbody.appendChild(row);
+            });
+
+            // Add event listeners for select changes
+            requests.forEach((req, index) => {
+                if (isAdmin && !req.returned) {
+                    const select = document.getElementById(`status-${index}`);
+                    const input = document.getElementById(`damaged-${index}`);
+                    if (select && input) {
+                        select.addEventListener('change', () => {
+                            input.style.display = select.value === 'Damaged' ? 'inline' : 'none';
+                        });
+                    }
+                }
+            });
+        }
+
+        function toggleAdminUI() {
+            document.getElementById('officerTools').style.display = isAdmin ? 'block' : 'none';
+            document.getElementById('clearLogs').style.display = isAdmin ? 'block' : 'none';
+            document.getElementById('downloadExcel').style.display = isAdmin ? 'block' : 'none';
+            document.getElementById('logout').style.display = isAdmin ? 'block' : 'none';
+            document.getElementById('loginForm').style.display = isAdmin ? 'none' : 'block';
+            const adminColumns = document.querySelectorAll('.admin-only');
+            adminColumns.forEach(col => {
+                col.classList.toggle('admin-visible', isAdmin);
+            });
+            renderInventory();
+            renderLogs();
+        }
+
+        function login(event) {
+            event.preventDefault();
+            const user = document.getElementById('username').value;
+            const pass = document.getElementById('password').value;
+            if (user === ADMIN_USER && pass === ADMIN_PASS) {
+                isAdmin = true;
+                toggleAdminUI();
+                alert('Admin login successful!');
+            } else {
+                alert('Invalid credentials.');
+            }
+            document.getElementById('username').value = '';
+            document.getElementById('password').value = '';
+        }
+
+        function logout() {
+            isAdmin = false;
+            toggleAdminUI();
+        }
+
+        function requestItem(event) {
+            event.preventDefault();
+            const id = parseInt(document.getElementById('requestSelect').value);
+            const quantity = parseInt(document.getElementById('requestQuantity').value);
+            const name = document.getElementById('requesterName').value.trim();
+            const contact = document.getElementById('contactNumber').value.trim();
+            if (!id || quantity < 1 || !name || !contact) {
+                return alert('Please select an item, enter a valid quantity, your name, and contact number.');
+            }
+            const item = inventory.find(i => i.id === id);
+            const available = item.quantity - item.inUse - item.damaged;
+            if (item && available >= quantity) {
+                item.inUse += quantity;
+                requests.push({
+                    item: item.name,
+                    quantity,
+                    name,
+                    contact,
+                    date: Date.now(),
+                    returned: false,
+                    submittedDate: null,
+                    status: null,
+                    damagedCount: 0
+                });
+                saveData();
+                renderInventory();
+                renderLogs();
+                document.getElementById('requestQuantity').value = '';
+                document.getElementById('requesterName').value = '';
+                document.getElementById('contactNumber').value = '';
+                alert(`${quantity} ${item.name}(s) requested successfully!`);
+            } else {
+                alert(`Not enough ${item.name} available. Available: ${available}`);
+            }
+        }
+
+        function addItem(event) {
+            event.preventDefault();
+            if (!isAdmin) return;
+            const name = document.getElementById('newItemName').value.trim();
+            const quantity = parseInt(document.getElementById('newItemQuantity').value);
+            if (!name || quantity < 1) return alert('Enter a valid item name and quantity.');
+            inventory.push({ id: nextId++, name: name, quantity: quantity, inUse: 0, damaged: 0 });
+            saveData();
+            renderInventory();
+            document.getElementById('newItemName').value = '';
+            document.getElementById('newItemQuantity').value = '';
+        }
+
+        function resetItem(id) {
+            if (!isAdmin) return;
+            const item = inventory.find(i => i.id === id);
+            if (item) {
+                item.inUse = 0;
+                saveData();
+                renderInventory();
+            }
+        }
+
+        function resetIndividualItem(id) {
+            if (!isAdmin || !confirm('Are you sure you want to reset this item? This will set inUse and damaged to 0.')) return;
+            const item = inventory.find(i => i.id === id);
+            if (item) {
+                item.inUse = 0;
+                item.damaged = 0;
+                saveData();
+                renderInventory();
+            }
+        }
+
+        function updateDamaged(id) {
+            if (!isAdmin) return;
+            const item = inventory.find(i => i.id === id);
+            if (item) {
+                const input = document.getElementById(`damaged-input-${id}`);
+                const newDamaged = parseInt(input.value);
+                if (isNaN(newDamaged) || newDamaged < 0 || newDamaged > item.quantity) {
+                    alert(`Invalid damaged value. Must be between 0 and ${item.quantity}`);
+                    return;
+                }
+                const available = item.quantity - item.inUse - item.damaged;
+                const increase = newDamaged - item.damaged;
+                if (increase > 0 && increase > available) {
+                    alert(`Can only mark up to ${available} more as damaged.`);
+                    return;
+                }
+                item.damaged = newDamaged;
+                saveData();
+                renderInventory();
+                input.value = '';
+            }
+        }
+
+        function deleteItem(id) {
+            if (!isAdmin || !confirm('Are you sure you want to delete this item?')) return;
+            inventory = inventory.filter(i => i.id !== id);
+            saveData();
+            renderInventory();
+        }
+
+        function resetAll() {
+            if (!isAdmin) return;
+            inventory.forEach(item => item.inUse = 0);
+            saveData();
+            renderInventory();
+        }
+
+        function markSubmitted(index) {
+            if (!isAdmin) return;
+            const req = requests[index];
+            const select = document.getElementById(`status-${index}`);
+            const status = select.value;
+            let damagedCount = 0;
+            if (status === 'Damaged') {
+                const input = document.getElementById(`damaged-${index}`);
+                damagedCount = parseInt(input.value);
+                if (isNaN(damagedCount) || damagedCount < 1 || damagedCount > req.quantity) {
+                    alert(`Damaged count must be between 1 and ${req.quantity}`);
+                    return;
+                }
+            }
+            req.returned = true;
+            req.submittedDate = Date.now();
+            req.status = status;
+            req.damagedCount = damagedCount;
+            const item = inventory.find(i => i.name === req.item);
+            if (item) {
+                item.inUse -= req.quantity;
+                if (status === 'Damaged') {
+                    item.damaged += damagedCount;
+                }
+            }
+            saveData();
+            renderInventory();
+            renderLogs();
+        }
+
+        function clearLogs() {
+            if (!isAdmin || !confirm('Are you sure you want to clear all logs?')) return;
+            requests = [];
+            saveData();
+            renderLogs();
+        }
+
+        function downloadLogs() {
+            let csvContent = 'Name of Requestor,Contact Number,Inventory Requested,Quantity Requested,Requested Date & Time,Submitted Date & Time,Submission Status\n';
+            const sortedRequests = [...requests].sort((a, b) => {
+                const timeA = a.submittedDate || a.date;
+                const timeB = b.submittedDate || b.date;
+                return timeB - timeA;
+            });
+            sortedRequests.forEach(req => {
+                const requestedDate = req.date ? new Date(req.date).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata'}) : '-';
+                const submittedDate = req.submittedDate ? new Date(req.submittedDate).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }) : '-';
+                let submissionStatus = '-';
+                if (req.returned) {
+                    submissionStatus = req.status === 'Working' ? 'Working Received' : `Damaged Received (${req.damagedCount})`;
+                }
+                csvContent += `"${req.name}","${req.contact}","${req.item}","${req.quantity}","${requestedDate}","${submittedDate}","${submissionStatus}"\n`;
+            });
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = 'request_logs.csv';
+            link.style.display = 'none';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+        }
+
+        document.getElementById('loginForm').addEventListener('submit', login);
+        document.getElementById('logout').addEventListener('click', logout);
+        document.getElementById('requestForm').addEventListener('submit', requestItem);
+        document.getElementById('addForm').addEventListener('submit', addItem);
+        document.getElementById('resetAll').addEventListener('click', resetAll);
+        document.getElementById('clearLogs').addEventListener('click', clearLogs);
+        document.getElementById('downloadExcel').addEventListener('click', downloadLogs);
+
+        toggleAdminUI();
+        renderInventory();
+        renderLogs();
+    </script>
+</body>
+</html>

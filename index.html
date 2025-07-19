@@ -52,7 +52,7 @@
         <h1 class="institute-header">Jaipuria Institute of Management, Lucknow</h1>
         <h2 class="office-header">Office of Student Affairs</h2>
         <h1>Sports Inventory Management</h1>
-        <p>Welcome! As Dean of Student Affairs, this advanced system provides comprehensive inventory tracking. Students can view and request items; admins manage operations.</p>
+        <p>Welcome! As Dean of Student Affairs, this advanced system provides comprehensive inventory tracking with real-time syncing across devices via Firebase.</p>
 
         <div id="loginSection">
             <h2>Admin Login</h2>
@@ -139,34 +139,55 @@
         <button id="downloadExcel" class="download-excel" style="display: none;">Download Logs as Excel</button>
     </div>
 
+    <script src="https://www.gstatic.com/firebasejs/11.10.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/11.10.0/firebase-database.js"></script>
     <script>
+        // Replace with your Firebase config from Step 1
+        const firebaseConfig = {
+            apiKey: "YOUR_API_KEY",
+            authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
+            databaseURL: "https://YOUR_PROJECT_ID-default-rtdb.YOUR_REGION.firebasedatabase.app",
+            projectId: "YOUR_PROJECT_ID",
+            storageBucket: "YOUR_PROJECT_ID.appspot.com",
+            messagingSenderId: "YOUR_SENDER_ID",
+            appId: "YOUR_APP_ID"
+        };
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.database();
+        const inventoryRef = db.ref('inventory');
+        const requestsRef = db.ref('requests');
+
         const ADMIN_USER = 'Admin';
         const ADMIN_PASS = 'osa@2023';
         let isAdmin = false;
-        let inventory = JSON.parse(localStorage.getItem('inventory')) || [
-            { id: 1, name: 'Football', quantity: 10, inUse: 0, damaged: 0 },
-            { id: 2, name: 'Basketball', quantity: 8, inUse: 0, damaged: 0 },
-            { id: 3, name: 'Tennis Racket', quantity: 12, inUse: 0, damaged: 0 },
-            { id: 4, name: 'Volleyball Net', quantity: 5, inUse: 0, damaged: 0 }
-        ];
-        let requests = JSON.parse(localStorage.getItem('requests')) || [];
-        let nextId = inventory.length + 1;
+        let inventory = {}; // Object with id as keys
+        let requests = {}; // Object with Firebase keys
+        let nextId = 1;
 
-        // Normalize dates to timestamps if necessary
-        requests = requests.map(req => ({
-            ...req,
-            date: typeof req.date === 'string' ? new Date(req.date).getTime() : req.date,
-            submittedDate: typeof req.submittedDate === 'string' ? new Date(req.submittedDate).getTime() : req.submittedDate || null
-        }));
-
-        // Ensure damaged in inventory
-        inventory.forEach(item => {
-            if (item.damaged === undefined) item.damaged = 0;
+        // Load and sync data in real-time
+        inventoryRef.on('value', (snapshot) => {
+            inventory = snapshot.val() || {
+                1: { id: 1, name: 'Football', quantity: 10, inUse: 0, damaged: 0 },
+                2: { id: 2, name: 'Basketball', quantity: 8, inUse: 0, damaged: 0 },
+                3: { id: 3, name: 'Tennis Racket', quantity: 12, inUse: 0, damaged: 0 },
+                4: { id: 4, name: 'Volleyball Net', quantity: 5, inUse: 0, damaged: 0 }
+            };
+            // Calculate nextId
+            nextId = Math.max(...Object.keys(inventory).map(Number)) + 1;
+            renderInventory();
         });
 
-        function saveData() {
-            localStorage.setItem('inventory', JSON.stringify(inventory));
-            localStorage.setItem('requests', JSON.stringify(requests));
+        requestsRef.on('value', (snapshot) => {
+            requests = snapshot.val() || {};
+            renderLogs();
+        });
+
+        function saveInventory() {
+            inventoryRef.set(inventory);
+        }
+
+        function saveRequests() {
+            requestsRef.set(requests);
         }
 
         function renderInventory() {
@@ -178,7 +199,7 @@
             let totalInUse = 0;
             let totalDamaged = 0;
             let totalAvailable = 0;
-            inventory.forEach(item => {
+            Object.values(inventory).forEach(item => {
                 const available = item.quantity - item.inUse - item.damaged;
                 const row = document.createElement('tr');
                 let actionButtons = '';
@@ -221,9 +242,9 @@
         }
 
         function showInUseDetails(id) {
-            const item = inventory.find(i => i.id === id);
+            const item = inventory[id];
             if (!item) return;
-            const pending = requests.filter(r => r.item === item.name && !r.returned);
+            const pending = Object.values(requests).filter(r => r.item === item.name && !r.returned);
             if (pending.length === 0) {
                 alert('No items currently in use.');
                 return;
@@ -233,9 +254,9 @@
         }
 
         function showDamagedDetails(id) {
-            const item = inventory.find(i => i.id === id);
+            const item = inventory[id];
             if (!item) return;
-            const damagedReqs = requests.filter(r => r.item === item.name && r.returned && r.status === 'Damaged');
+            const damagedReqs = Object.values(requests).filter(r => r.item === item.name && r.returned && r.status === 'Damaged');
             if (damagedReqs.length === 0) {
                 alert('No damaged items recorded from requests. (Note: Manual damages may not have associated user details.)');
                 return;
@@ -247,23 +268,19 @@
         function renderLogs() {
             const tbody = document.getElementById('logTbody');
             tbody.innerHTML = '';
-            const sortedRequests = [...requests].sort((a, b) => {
-                const timeA = a.submittedDate || a.date;
-                const timeB = b.submittedDate || b.date;
-                return timeB - timeA;
-            });
-            sortedRequests.forEach((req) => {
-                const index = requests.findIndex(r => r.date === req.date && r.name === req.name && r.contact === req.contact);
+            const sortedRequests = Object.entries(requests).sort(([,a], [,b]) => (b.submittedDate || b.date) - (a.submittedDate || a.date)).map(([,req]) => req);
+            sortedRequests.forEach((req, index) => {
+                const key = Object.keys(requests)[index]; // Use Firebase key as identifier
                 const row = document.createElement('tr');
                 let actionUI = '';
                 if (isAdmin && !req.returned) {
                     actionUI = `
-                        <select id="status-${index}">
+                        <select id="status-${key}">
                             <option value="Working">Working Received</option>
                             <option value="Damaged">Damaged Received</option>
                         </select>
-                        <input id="damaged-${index}" type="number" min="1" max="${req.quantity}" style="display:none;" placeholder="Damaged Count">
-                        <button type="button" class="mark-submitted" onclick="markSubmitted(${index})">Submit</button>
+                        <input id="damaged-${key}" type="number" min="1" max="${req.quantity}" style="display:none;" placeholder="Damaged Count">
+                        <button type="button" class="mark-submitted" onclick="markSubmitted('${key}')">Submit</button>
                     `;
                 }
                 let submissionStatus = '-';
@@ -284,10 +301,11 @@
             });
 
             // Add event listeners for select changes
-            requests.forEach((req, index) => {
+            Object.keys(requests).forEach((key, index) => {
+                const req = requests[key];
                 if (isAdmin && !req.returned) {
-                    const select = document.getElementById(`status-${index}`);
-                    const input = document.getElementById(`damaged-${index}`);
+                    const select = document.getElementById(`status-${key}`);
+                    const input = document.getElementById(`damaged-${key}`);
                     if (select && input) {
                         select.addEventListener('change', () => {
                             input.style.display = select.value === 'Damaged' ? 'inline' : 'none';
@@ -340,11 +358,11 @@
             if (!id || quantity < 1 || !name || !contact) {
                 return alert('Please select an item, enter a valid quantity, your name, and contact number.');
             }
-            const item = inventory.find(i => i.id === id);
+            const item = inventory[id];
             const available = item.quantity - item.inUse - item.damaged;
             if (item && available >= quantity) {
                 item.inUse += quantity;
-                requests.push({
+                const newReq = {
                     item: item.name,
                     quantity,
                     name,
@@ -354,10 +372,10 @@
                     submittedDate: null,
                     status: null,
                     damagedCount: 0
-                });
-                saveData();
-                renderInventory();
-                renderLogs();
+                };
+                const newReqRef = requestsRef.push();
+                newReqRef.set(newReq);
+                saveInventory();
                 document.getElementById('requestQuantity').value = '';
                 document.getElementById('requesterName').value = '';
                 document.getElementById('contactNumber').value = '';
@@ -373,37 +391,35 @@
             const name = document.getElementById('newItemName').value.trim();
             const quantity = parseInt(document.getElementById('newItemQuantity').value);
             if (!name || quantity < 1) return alert('Enter a valid item name and quantity.');
-            inventory.push({ id: nextId++, name: name, quantity: quantity, inUse: 0, damaged: 0 });
-            saveData();
-            renderInventory();
+            inventory[nextId] = { id: nextId, name, quantity, inUse: 0, damaged: 0 };
+            nextId++;
+            saveInventory();
             document.getElementById('newItemName').value = '';
             document.getElementById('newItemQuantity').value = '';
         }
 
         function resetItem(id) {
             if (!isAdmin) return;
-            const item = inventory.find(i => i.id === id);
+            const item = inventory[id];
             if (item) {
                 item.inUse = 0;
-                saveData();
-                renderInventory();
+                saveInventory();
             }
         }
 
         function resetIndividualItem(id) {
             if (!isAdmin || !confirm('Are you sure you want to reset this item? This will set inUse and damaged to 0.')) return;
-            const item = inventory.find(i => i.id === id);
+            const item = inventory[id];
             if (item) {
                 item.inUse = 0;
                 item.damaged = 0;
-                saveData();
-                renderInventory();
+                saveInventory();
             }
         }
 
         function updateDamaged(id) {
             if (!isAdmin) return;
-            const item = inventory.find(i => i.id === id);
+            const item = inventory[id];
             if (item) {
                 const input = document.getElementById(`damaged-input-${id}`);
                 const newDamaged = parseInt(input.value);
@@ -418,34 +434,31 @@
                     return;
                 }
                 item.damaged = newDamaged;
-                saveData();
-                renderInventory();
+                saveInventory();
                 input.value = '';
             }
         }
 
         function deleteItem(id) {
             if (!isAdmin || !confirm('Are you sure you want to delete this item?')) return;
-            inventory = inventory.filter(i => i.id !== id);
-            saveData();
-            renderInventory();
+            delete inventory[id];
+            saveInventory();
         }
 
         function resetAll() {
             if (!isAdmin) return;
-            inventory.forEach(item => item.inUse = 0);
-            saveData();
-            renderInventory();
+            Object.values(inventory).forEach(item => item.inUse = 0);
+            saveInventory();
         }
 
-        function markSubmitted(index) {
+        function markSubmitted(key) {
             if (!isAdmin) return;
-            const req = requests[index];
-            const select = document.getElementById(`status-${index}`);
+            const req = requests[key];
+            const select = document.getElementById(`status-${key}`);
             const status = select.value;
             let damagedCount = 0;
             if (status === 'Damaged') {
-                const input = document.getElementById(`damaged-${index}`);
+                const input = document.getElementById(`damaged-${key}`);
                 damagedCount = parseInt(input.value);
                 if (isNaN(damagedCount) || damagedCount < 1 || damagedCount > req.quantity) {
                     alert(`Damaged count must be between 1 and ${req.quantity}`);
@@ -456,34 +469,27 @@
             req.submittedDate = Date.now();
             req.status = status;
             req.damagedCount = damagedCount;
-            const item = inventory.find(i => i.name === req.item);
+            const item = Object.values(inventory).find(i => i.name === req.item);
             if (item) {
                 item.inUse -= req.quantity;
                 if (status === 'Damaged') {
                     item.damaged += damagedCount;
                 }
+                saveInventory();
             }
-            saveData();
-            renderInventory();
-            renderLogs();
+            requestsRef.child(key).update(req);
         }
 
         function clearLogs() {
             if (!isAdmin || !confirm('Are you sure you want to clear all logs?')) return;
-            requests = [];
-            saveData();
-            renderLogs();
+            requestsRef.set({});
         }
 
         function downloadLogs() {
             let csvContent = 'Name of Requestor,Contact Number,Inventory Requested,Quantity Requested,Requested Date & Time,Submitted Date & Time,Submission Status\n';
-            const sortedRequests = [...requests].sort((a, b) => {
-                const timeA = a.submittedDate || a.date;
-                const timeB = b.submittedDate || b.date;
-                return timeB - timeA;
-            });
+            const sortedRequests = Object.values(requests).sort((a, b) => (b.submittedDate || b.date) - (a.submittedDate || a.date));
             sortedRequests.forEach(req => {
-                const requestedDate = req.date ? new Date(req.date).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata'}) : '-';
+                const requestedDate = req.date ? new Date(req.date).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }) : '-';
                 const submittedDate = req.submittedDate ? new Date(req.submittedDate).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }) : '-';
                 let submissionStatus = '-';
                 if (req.returned) {
@@ -512,8 +518,6 @@
         document.getElementById('downloadExcel').addEventListener('click', downloadLogs);
 
         toggleAdminUI();
-        renderInventory();
-        renderLogs();
     </script>
 </body>
 </html>

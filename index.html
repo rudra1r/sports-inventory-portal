@@ -30,8 +30,12 @@
         button.update-damaged:hover { background-color: #7B1FA2; }
         button.download-excel { background-color: #008CBA; }
         button.download-excel:hover { background-color: #007BA7; }
+        button.approve { background-color: #4CAF50; }
+        button.approve:hover { background-color: #45a049; }
+        button.decline { background-color: #f44336; }
+        button.decline:hover { background-color: #da190b; }
         form { margin-bottom: 20px; }
-        input, select { padding: 6px; margin-right: 10px; }
+        input, select, textarea { padding: 6px; margin-right: 10px; }
         #loginSection { margin-bottom: 20px; border: 1px solid #ddd; padding: 10px; background: rgba(255,255,255,0.9); }
         #officerTools, #clearLogs { display: none; }
         .admin-only { display: none; }
@@ -71,7 +75,7 @@
                 <p id="totalInventory">0</p>
             </div>
             <div class="card">
-                <h3>Total In Use</h3>
+                <h3>Total rxIn Use</h3>
                 <p id="totalInUse">0</p>
             </div>
             <div class="card">
@@ -128,6 +132,8 @@
                     <th>Inventory Requested</th>
                     <th>Quantity Requested</th>
                     <th>Requested Date & Time</th>
+                    <th>Inventory Allotment Status</th>
+                    <th>Admin Remark</th>
                     <th>Submitted Date & Time</th>
                     <th>Submission Status</th>
                     <th>Action</th>
@@ -142,7 +148,7 @@
     <script src="https://www.gstatic.com/firebasejs/12.0.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/12.0.0/firebase-database-compat.js"></script>
     <script>
-        // Replace with your Firebase config from Step 1
+        // Firebase configuration
         const firebaseConfig = {
             apiKey: "AIzaSyDcELoYtMCjNAijAkMbAo9aAT0jrhKtD5w",
             authDomain: "jaipuria-sports-inventor-7bffd.firebaseapp.com",
@@ -161,8 +167,8 @@
         const ADMIN_USER = 'Admin';
         const ADMIN_PASS = 'osa@2023';
         let isAdmin = false;
-        let inventory = {}; // Object with id as keys
-        let requests = {}; // Object with Firebase keys
+        let inventory = {};
+        let requests = {};
         let nextId = 1;
 
         // Load and sync data in real-time
@@ -173,7 +179,6 @@
                 3: { id: 3, name: 'Tennis Racket', quantity: 12, inUse: 0, damaged: 0 },
                 4: { id: 4, name: 'Volleyball Net', quantity: 5, inUse: 0, damaged: 0 }
             };
-            // Calculate nextId
             nextId = Math.max(...Object.keys(inventory).map(Number)) + 1;
             renderInventory();
         });
@@ -245,7 +250,7 @@
         function showInUseDetails(id) {
             const item = inventory[id];
             if (!item) return;
-            const pending = Object.values(requests).filter(r => r.item === item.name && !r.returned);
+            const pending = Object.values(requests).filter(r => r.item === item.name && r.allotmentStatus === 'Approved' && !r.returned);
             if (pending.length === 0) {
                 alert('No items currently in use.');
                 return;
@@ -271,10 +276,16 @@
             tbody.innerHTML = '';
             const sortedRequests = Object.entries(requests).sort(([,a], [,b]) => (b.submittedDate || b.date) - (a.submittedDate || a.date)).map(([,req]) => req);
             sortedRequests.forEach((req, index) => {
-                const key = Object.keys(requests)[index]; // Use Firebase key as identifier
+                const key = Object.keys(requests)[index];
                 const row = document.createElement('tr');
                 let actionUI = '';
-                if (isAdmin && !req.returned) {
+                if (isAdmin && req.allotmentStatus === 'Approval Pending') {
+                    actionUI = `
+                        <button class="approve" onclick="updateAllotmentStatus('${key}', 'Approved')">Approve</button>
+                        <button class="decline" onclick="updateAllotmentStatus('${key}', 'Declined')">Decline</button>
+                        <textarea id="remark-${key}" placeholder="Enter remark"></textarea>
+                    `;
+                } else if (isAdmin && req.allotmentStatus === 'Approved' && !req.returned) {
                     actionUI = `
                         <select id="status-${key}">
                             <option value="Working">Working Received</option>
@@ -294,6 +305,8 @@
                     <td>${req.item}</td>
                     <td>${req.quantity}</td>
                     <td>${req.date ? new Date(req.date).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }) : '-'}</td>
+                    <td>${req.allotmentStatus || 'Approval Pending'}</td>
+                    <td>${req.adminRemark || '-'}</td>
                     <td>${req.submittedDate ? new Date(req.submittedDate).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }) : '-'}</td>
                     <td>${submissionStatus}</td>
                     <td>${actionUI}</td>
@@ -304,7 +317,7 @@
             // Add event listeners for select changes
             Object.keys(requests).forEach((key, index) => {
                 const req = requests[key];
-                if (isAdmin && !req.returned) {
+                if (isAdmin && req.allotmentStatus === 'Approved' && !req.returned) {
                     const select = document.getElementById(`status-${key}`);
                     const input = document.getElementById(`damaged-${key}`);
                     if (select && input) {
@@ -362,13 +375,14 @@
             const item = inventory[id];
             const available = item.quantity - item.inUse - item.damaged;
             if (item && available >= quantity) {
-                item.inUse += quantity;
                 const newReq = {
                     item: item.name,
                     quantity,
                     name,
                     contact,
                     date: Date.now(),
+                    allotmentStatus: 'Approval Pending',
+                    adminRemark: '',
                     returned: false,
                     submittedDate: null,
                     status: null,
@@ -376,14 +390,33 @@
                 };
                 const newReqRef = requestsRef.push();
                 newReqRef.set(newReq);
-                saveInventory();
                 document.getElementById('requestQuantity').value = '';
                 document.getElementById('requesterName').value = '';
                 document.getElementById('contactNumber').value = '';
-                alert(`${quantity} ${item.name}(s) requested successfully!`);
+                alert(`${quantity} ${item.name}(s) requested successfully! Awaiting admin approval.`);
             } else {
                 alert(`Not enough ${item.name} available. Available: ${available}`);
             }
+        }
+
+        function updateAllotmentStatus(key, status) {
+            if (!isAdmin) return;
+            const req = requests[key];
+            const remark = document.getElementById(`remark-${key}`).value.trim();
+            if (!remark) {
+                alert('Please provide a remark before approving or declining.');
+                return;
+            }
+            req.allotmentStatus = status;
+            req.adminRemark = remark;
+            if (status === 'Approved') {
+                const item = Object.values(inventory).find(i => i.name === req.item);
+                if (item) {
+                    item.inUse += req.quantity;
+                    saveInventory();
+                }
+            }
+            requestsRef.child(key).update(req);
         }
 
         function addItem(event) {
@@ -422,7 +455,7 @@
             if (!isAdmin) return;
             const item = inventory[id];
             if (item) {
-                const input = document.getElementById(`damaged-input-${id}`);
+                const input = document.getElementById(`damaged-input-${item.id}`);
                 const newDamaged = parseInt(input.value);
                 if (isNaN(newDamaged) || newDamaged < 0 || newDamaged > item.quantity) {
                     alert(`Invalid damaged value. Must be between 0 and ${item.quantity}`);
@@ -487,7 +520,7 @@
         }
 
         function downloadLogs() {
-            let csvContent = 'Name of Requestor,Contact Number,Inventory Requested,Quantity Requested,Requested Date & Time,Submitted Date & Time,Submission Status\n';
+            let csvContent = 'Name of Requestor,Contact Number,Inventory Requested,Quantity Requested,Requested Date & Time,Inventory Allotment Status,Admin Remark,Submitted Date & Time,Submission Status\n';
             const sortedRequests = Object.values(requests).sort((a, b) => (b.submittedDate || b.date) - (a.submittedDate || a.date));
             sortedRequests.forEach(req => {
                 const requestedDate = req.date ? new Date(req.date).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }) : '-';
@@ -496,7 +529,7 @@
                 if (req.returned) {
                     submissionStatus = req.status === 'Working' ? 'Working Received' : `Damaged Received (${req.damagedCount})`;
                 }
-                csvContent += `"${req.name}","${req.contact}","${req.item}","${req.quantity}","${requestedDate}","${submittedDate}","${submissionStatus}"\n`;
+                csvContent += `"${req.name}","${req.contact}","${req.item}","${req.quantity}","${requestedDate}","${req.allotmentStatus || 'Approval Pending'}","${req.adminRemark || '-'}","${submittedDate}","${submissionStatus}"\n`;
             });
             const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
             const url = URL.createObjectURL(blob);

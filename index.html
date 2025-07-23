@@ -39,6 +39,7 @@
         form { margin-bottom: 20px; }
         input, select, textarea { padding: 6px; margin-right: 10px; }
         input.edit-input { width: 100px; }
+        select.status-select { width: 120px; }
         #loginSection { margin-bottom: 20px; border: 1px solid #ddd; padding: 10px; background: rgba(255,255,255,0.9); }
         #officerTools, #clearLogs { display: none; }
         .admin-only { display: none; }
@@ -178,10 +179,10 @@
         // Load and sync data in real-time
         inventoryRef.on('value', (snapshot) => {
             inventory = snapshot.val() || {
-                1: { id: 1, name: 'Football', quantity: 10, inUse: 0, damaged: 0 },
-                2: { id: 2, name: 'Basketball', quantity: 8, inUse: 0, damaged: 0 },
-                3: { id: 3, name: 'Tennis Racket', quantity: 12, inUse: 0, damaged: 0 },
-                4: { id: 4, name: 'Volleyball Net', quantity: 5, inUse: 0, damaged: 0 }
+                1: { id: 1, name: 'Football', quantity: 10, inUse: 0, damaged: 0, status: 'Available' },
+                2: { id: 2, name: 'Basketball', quantity: 8, inUse: 0, damaged: 0, status: 'Available' },
+                3: { id: 3, name: 'Tennis Racket', quantity: 12, inUse: 0, damaged: 0, status: 'Available' },
+                4: { id: 4, name: 'Volleyball Net', quantity: 5, inUse: 0, damaged: 0, status: 'Available' }
             };
             nextId = Math.max(...Object.keys(inventory).map(Number)) + 1;
             renderInventory();
@@ -216,13 +217,13 @@
             }
             item.name = newName;
             // Update all related requests with the new item name
-            Object.values(requests).forEach(req => {
+            Object.entries(requests).forEach(([key, req]) => {
                 if (req.itemId === id) {
                     req.item = newName;
+                    requestsRef.child(key).update({ item: newName });
                 }
             });
             saveInventory();
-            saveRequests();
             renderInventory();
             renderLogs();
         }
@@ -237,12 +238,22 @@
                 alert('Total inventory must be a non-negative number.');
                 return;
             }
-            const available = item.quantity - item.inUse - item.damaged;
             if (newQuantity < item.inUse + item.damaged) {
                 alert(`Total inventory cannot be less than in-use (${item.inUse}) plus damaged (${item.damaged}).`);
                 return;
             }
             item.quantity = newQuantity;
+            saveInventory();
+            renderInventory();
+        }
+
+        function updateItemStatus(id) {
+            if (!isAdmin) return;
+            const item = inventory[id];
+            if (!item) return;
+            const select = document.getElementById(`status-select-${id}`);
+            const newStatus = select.value;
+            item.status = newStatus;
             saveInventory();
             renderInventory();
         }
@@ -259,14 +270,19 @@
             Object.values(inventory).forEach(item => {
                 const available = item.quantity - item.inUse - item.damaged;
                 const row = document.createElement('tr');
-                let actionButtons = '';
                 let nameCell = item.name;
                 let quantityCell = item.quantity;
+                let statusCell = item.status || 'Available';
+                let actionButtons = '';
                 if (isAdmin) {
                     nameCell = `<input type="text" id="name-input-${item.id}" class="edit-input" value="${item.name}">
                                 <button class="edit" onclick="updateItemName(${item.id})">Save</button>`;
                     quantityCell = `<input type="number" id="quantity-input-${item.id}" class="edit-input" value="${item.quantity}" min="0">
                                    <button class="edit" onclick="updateTotalInventory(${item.id})">Save</button>`;
+                    statusCell = `<select id="status-select-${item.id}" class="status-select" onchange="updateItemStatus(${item.id})">
+                                    <option value="Available" ${item.status === 'Available' ? 'selected' : ''}>Available</option>
+                                    <option value="Unavailable" ${item.status === 'Unavailable' ? 'selected' : ''}>Unavailable</option>
+                                  </select>`;
                     actionButtons += `<button onclick="resetItem(${item.id})" ${item.inUse === 0 ? 'disabled' : ''}>Mark Available</button> `;
                     actionButtons += `<button class="reset" onclick="resetIndividualItem(${item.id})">Reset Values</button> `;
                     actionButtons += `<input type="number" id="damaged-input-${item.id}" min="0" max="${item.quantity}" placeholder="Set Damaged"> `;
@@ -279,7 +295,7 @@
                 const damagedCell = (item.damaged > 0 && isAdmin) ? `<a href="#" onclick="showDamagedDetails(${item.id})">${item.damaged}</a>` : item.damaged;
                 row.innerHTML = `
                     <td>${nameCell}</td>
-                    <td class="admin-only ${isAdmin ? 'admin-visible' : ''}">${available > 0 ? 'Available' : 'Fully In Use'}</td>
+                    <td class="admin-only ${isAdmin ? 'admin-visible' : ''}">${statusCell}</td>
                     <td class="admin-only ${isAdmin ? 'admin-visible' : ''}">${actionButtons}</td>
                     <td>${quantityCell}</td>
                     <td>${inUseCell}</td>
@@ -287,7 +303,7 @@
                     <td>${available}</td>
                 `;
                 tbody.appendChild(row);
-                if (available > 0) {
+                if (item.status !== 'Unavailable' && available > 0) {
                     const option = document.createElement('option');
                     option.value = item.id;
                     option.textContent = `${item.name} (Available: ${available})`;
@@ -431,7 +447,7 @@
             }
             const item = inventory[id];
             const available = item.quantity - item.inUse - item.damaged;
-            if (item && available >= quantity) {
+            if (item && item.status !== 'Unavailable' && available >= quantity) {
                 const newReq = {
                     item: item.name,
                     itemId: id,
@@ -454,7 +470,7 @@
                 document.getElementById('contactNumber').value = '';
                 alert(`${quantity} ${item.name}(s) requested successfully! Awaiting admin approval.`);
             } else {
-                alert(`Not enough ${item.name} available. Available: ${available}`);
+                alert(`Not enough ${item.name} available or item is unavailable. Available: ${available}`);
             }
         }
 
@@ -476,11 +492,11 @@
                 const item = inventory[req.itemId];
                 if (item) {
                     const available = item.quantity - item.inUse - item.damaged;
-                    if (available >= issuedNumber) {
+                    if (available >= issuedNumber && item.status !== 'Unavailable') {
                         item.inUse += issuedNumber;
                         saveInventory();
                     } else {
-                        alert(`Not enough ${item.name} available. Available: ${available}`);
+                        alert(`Not enough ${item.name} available or item is unavailable. Available: ${available}`);
                         return;
                     }
                 } else {
@@ -503,7 +519,7 @@
             if (Object.values(inventory).some(item => item.name.toLowerCase() === name.toLowerCase())) {
                 return alert('An item with this name already exists. Please use a unique name.');
             }
-            inventory[nextId] = { id: nextId, name, quantity, inUse: 0, damaged: 0 };
+            inventory[nextId] = { id: nextId, name, quantity, inUse: 0, damaged: 0, status: 'Available' };
             nextId++;
             saveInventory();
             document.getElementById('newItemName').value = '';

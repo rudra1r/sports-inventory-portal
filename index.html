@@ -134,6 +134,7 @@
                     <th>Requested Date & Time</th>
                     <th>Inventory Allotment Status</th>
                     <th>Admin Remark</th>
+                    <th>Issued Number</th>
                     <th>Submitted Date & Time</th>
                     <th>Submission Status</th>
                     <th>Action</th>
@@ -255,7 +256,7 @@
                 alert('No items currently in use.');
                 return;
             }
-            const details = pending.map(r => `${r.name} (${r.contact}) has ${r.quantity} since ${new Date(r.date).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}`).join('\n');
+            const details = pending.map(r => `${r.name} (${r.contact}) has ${r.issuedNumber || r.quantity} since ${new Date(r.date).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}`).join('\n');
             alert(`In Use Details for ${item.name}:\n${details}`);
         }
 
@@ -280,6 +281,7 @@
                 let actionUI = '';
                 if (isAdmin && req.allotmentStatus === 'Approval Pending') {
                     actionUI = `
+                        <input id="issued-${req.key}" type="number" min="1" max="${req.quantity}" placeholder="Issued Number" required>
                         <button class="approve" onclick="updateAllotmentStatus('${req.key}', 'Approved')">Approve</button>
                         <button class="decline" onclick="updateAllotmentStatus('${req.key}', 'Declined')">Decline</button>
                         <textarea id="remark-${req.key}" placeholder="Enter remark"></textarea>
@@ -290,7 +292,7 @@
                             <option value="Working">Working Received</option>
                             <option value="Damaged">Damaged Received</option>
                         </select>
-                        <input id="damaged-${req.key}" type="number" min="1" max="${req.quantity}" style="display:none;" placeholder="Damaged Count">
+                        <input id="damaged-${req.key}" type="number" min="1" max="${req.issuedNumber || req.quantity}" style="display:none;" placeholder="Damaged Count">
                         <button type="button" class="mark-submitted" onclick="markSubmitted('${req.key}')">Submit</button>
                     `;
                 }
@@ -306,6 +308,7 @@
                     <td>${req.date ? new Date(req.date).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }) : '-'}</td>
                     <td>${req.allotmentStatus || 'Approval Pending'}</td>
                     <td>${req.adminRemark || '-'}</td>
+                    <td>${req.issuedNumber !== undefined ? req.issuedNumber : (req.allotmentStatus === 'Approved' ? req.quantity : '-')}</td>
                     <td>${req.submittedDate ? new Date(req.submittedDate).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }) : '-'}</td>
                     <td>${submissionStatus}</td>
                     <td>${actionUI}</td>
@@ -382,6 +385,7 @@
                     date: Date.now(),
                     allotmentStatus: 'Approval Pending',
                     adminRemark: '',
+                    issuedNumber: null,
                     returned: false,
                     submittedDate: null,
                     status: null,
@@ -402,18 +406,22 @@
             if (!isAdmin) return;
             const req = requests[key];
             const remark = document.getElementById(`remark-${key}`).value.trim();
+            const issuedInput = document.getElementById(`issued-${key}`);
+            const issuedNumber = parseInt(issuedInput ? issuedInput.value : req.quantity);
             if (!remark) {
                 alert('Please provide a remark before approving or declining.');
                 return;
             }
-            req.allotmentStatus = status;
-            req.adminRemark = remark;
             if (status === 'Approved') {
+                if (isNaN(issuedNumber) || issuedNumber < 1 || issuedNumber > req.quantity) {
+                    alert(`Issued number must be between 1 and ${req.quantity}.`);
+                    return;
+                }
                 const item = inventory[req.itemId];
                 if (item) {
                     const available = item.quantity - item.inUse - item.damaged;
-                    if (available >= req.quantity) {
-                        item.inUse += req.quantity;
+                    if (available >= issuedNumber) {
+                        item.inUse += issuedNumber;
                         saveInventory();
                     } else {
                         alert(`Not enough ${item.name} available. Available: ${available}`);
@@ -424,6 +432,9 @@
                     return;
                 }
             }
+            req.allotmentStatus = status;
+            req.adminRemark = remark;
+            req.issuedNumber = status === 'Approved' ? issuedNumber : null;
             requestsRef.child(key).update(req);
         }
 
@@ -509,8 +520,8 @@
             if (status === 'Damaged') {
                 const input = document.getElementById(`damaged-${key}`);
                 damagedCount = parseInt(input.value);
-                if (isNaN(damagedCount) || damagedCount < 1 || damagedCount > req.quantity) {
-                    alert(`Damaged count must be between 1 and ${req.quantity}`);
+                if (isNaN(damagedCount) || damagedCount < 1 || damagedCount > (req.issuedNumber || req.quantity)) {
+                    alert(`Damaged count must be between 1 and ${req.issuedNumber || req.quantity}`);
                     return;
                 }
             }
@@ -520,7 +531,7 @@
             req.damagedCount = damagedCount;
             const item = inventory[req.itemId];
             if (item) {
-                item.inUse -= req.quantity;
+                item.inUse -= (req.issuedNumber || req.quantity);
                 if (status === 'Damaged') {
                     item.damaged += damagedCount;
                 }
@@ -535,7 +546,7 @@
         }
 
         function downloadLogs() {
-            let csvContent = 'Name of Requestor,Contact Number,Inventory Requested,Quantity Requested,Requested Date & Time,Inventory Allotment Status,Admin Remark,Submitted Date & Time,Submission Status\n';
+            let csvContent = 'Name of Requestor,Contact Number,Inventory Requested,Quantity Requested,Requested Date & Time,Inventory Allotment Status,Admin Remark,Issued Number,Submitted Date & Time,Submission Status\n';
             const sortedRequests = Object.values(requests).sort((a, b) => (b.submittedDate || b.date) - (a.submittedDate || a.date));
             sortedRequests.forEach(req => {
                 const requestedDate = req.date ? new Date(req.date).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }) : '-';
@@ -544,7 +555,8 @@
                 if (req.returned) {
                     submissionStatus = req.status === 'Working' ? 'Working Received' : `Damaged Received (${req.damagedCount})`;
                 }
-                csvContent += `"${req.name}","${req.contact}","${req.item}","${req.quantity}","${requestedDate}","${req.allotmentStatus || 'Approval Pending'}","${req.adminRemark || '-'}","${submittedDate}","${submissionStatus}"\n`;
+                const issuedNumber = req.issuedNumber !== undefined ? req.issuedNumber : (req.allotmentStatus === 'Approved' ? req.quantity : '-');
+                csvContent += `"${req.name}","${req.contact}","${req.item}","${req.quantity}","${requestedDate}","${req.allotmentStatus || 'Approval Pending'}","${req.adminRemark || '-'}","${issuedNumber}","${submittedDate}","${submissionStatus}"\n`;
             });
             const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
             const url = URL.createObjectURL(blob);

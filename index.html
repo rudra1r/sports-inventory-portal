@@ -271,7 +271,11 @@
             let totalInUse = 0;
             let totalDamaged = 0;
             let totalAvailable = 0;
-            Object.values(inventory).forEach(item => {
+
+            // Filter items based on user type
+            const itemsToDisplay = isAdmin ? Object.values(inventory) : Object.values(inventory).filter(item => item.status === 'Available');
+
+            itemsToDisplay.forEach(item => {
                 const available = item.quantity - item.inUse - item.damaged;
                 const row = document.createElement('tr');
                 let nameCell = item.name;

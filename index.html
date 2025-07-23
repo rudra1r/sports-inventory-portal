@@ -42,6 +42,8 @@
         .admin-only.admin-visible { display: table-cell; }
         #inventoryTable { display: none; }
         #inventoryTable.admin-visible-table { display: table; }
+        .admin-only-section { display: none; }
+        .admin-only-section.admin-visible-section { display: block; }
         .container { background: rgba(255,255,255,0.8); padding: 20px; border-radius: 10px; }
         .institute-header { text-align: center; font-size: 1em; font-weight: bold; margin-bottom: 0; }
         .office-header { text-align: center; font-size: 0.9em; font-weight: bold; margin-top: 0; }
@@ -70,8 +72,8 @@
             <button id="logout" style="display: none; background-color: #f44336;">Logout</button>
         </div>
 
-        <h2>Inventory Dashboard</h2>
-        <div class="dashboard">
+        <h2 class="admin-only-section">Inventory Dashboard</h2>
+        <div class="dashboard admin-only-section">
             <div class="card">
                 <h3>Total Inventory</h3>
                 <p id="totalInventory">0</p>
@@ -90,7 +92,7 @@
             </div>
         </div>
 
-        <h2>Item-wise Inventory Details</h2>
+        <h2 class="admin-only-section">Item-wise Inventory Details</h2>
         <table id="inventoryTable">
             <thead>
                 <tr>
@@ -203,7 +205,7 @@
             const tbody = document.querySelector('#inventoryTable tbody');
             tbody.innerHTML = '';
             const select = document.getElementById('requestSelect');
-            select.innerHTML = '<option value="">Select Available Item</option>';
+            select.innerHTML = '<option value="">Select Item</option>';
             let totalInventory = 0;
             let totalInUse = 0;
             let totalDamaged = 0;
@@ -233,12 +235,10 @@
                     <td>${available}</td>
                 `;
                 tbody.appendChild(row);
-                if (available > 0) {
-                    const option = document.createElement('option');
-                    option.value = item.id;
-                    option.textContent = `${item.name} (Available: ${available})`;
-                    select.appendChild(option);
-                }
+                const option = document.createElement('option');
+                option.value = item.id;
+                option.textContent = item.name;
+                select.appendChild(option);
                 totalInventory += item.quantity;
                 totalInUse += item.inUse;
                 totalDamaged += item.damaged;
@@ -342,6 +342,10 @@
             const adminColumns = document.querySelectorAll('.admin-only');
             adminColumns.forEach(col => {
                 col.classList.toggle('admin-visible', isAdmin);
+            });
+            const adminSections = document.querySelectorAll('.admin-only-section');
+            adminSections.forEach(section => {
+                section.classList.toggle('admin-visible-section', isAdmin);
             });
             renderInventory();
             renderLogs();
@@ -523,4 +527,65 @@
             if (status === 'Damaged') {
                 const input = document.getElementById(`damaged-${key}`);
                 damagedCount = parseInt(input.value);
-                if (isNaN(damagedCount) || damagedCount < 1 || damagedCount > (req
+                if (isNaN(damagedCount) || damagedCount < 1 || damagedCount > (req.issuedNumber || req.quantity)) {
+                    alert(`Damaged count must be between 1 and ${req.issuedNumber || req.quantity}`);
+                    return;
+                }
+            }
+            req.returned = true;
+            req.submittedDate = Date.now();
+            req.status = status;
+            req.damagedCount = damagedCount;
+            const item = inventory[req.itemId];
+            if (item) {
+                item.inUse -= (req.issuedNumber || req.quantity);
+                if (status === 'Damaged') {
+                    item.damaged += damagedCount;
+                }
+                saveInventory();
+            }
+            requestsRef.child(key).update(req);
+        }
+
+        function clearLogs() {
+            if (!isAdmin || !confirm('Are you sure you want to clear all logs?')) return;
+            requestsRef.set({});
+        }
+
+        function downloadLogs() {
+            let csvContent = 'Name of Requestor,Contact Number,Inventory Requested,Quantity Requested,Requested Date & Time,Inventory Allotment Status,Admin Remark,Issued Number,Submitted Date & Time,Submission Status\n';
+            const sortedRequests = Object.values(requests).sort((a, b) => (b.submittedDate || b.date) - (a.submittedDate || a.date));
+            sortedRequests.forEach(req => {
+                const requestedDate = req.date ? new Date(req.date).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }) : '-';
+                const submittedDate = req.submittedDate ? new Date(req.submittedDate).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }) : '-';
+                let submissionStatus = '-';
+                if (req.returned) {
+                    submissionStatus = req.status === 'Working' ? 'Working Received' : `Damaged Received (${req.damagedCount})`;
+                }
+                const issuedNumber = req.issuedNumber !== undefined ? req.issuedNumber : (req.allotmentStatus === 'Approved' ? req.quantity : '-');
+                csvContent += `"${req.name}","${req.contact}","${req.item}","${req.quantity}","${requestedDate}","${req.allotmentStatus || 'Approval Pending'}","${req.adminRemark || '-'}","${issuedNumber}","${submittedDate}","${submissionStatus}"\n`;
+            });
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = 'request_logs.csv';
+            link.style.display = 'none';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+        }
+
+        document.getElementById('loginForm').addEventListener('submit', login);
+        document.getElementById('logout').addEventListener('click', logout);
+        document.getElementById('requestForm').addEventListener('submit', requestItem);
+        document.getElementById('addForm').addEventListener('submit', addItem);
+        document.getElementById('resetAll').addEventListener('click', resetAll);
+        document.getElementById('clearLogs').addEventListener('click', clearLogs);
+        document.getElementById('downloadExcel').addEventListener('click', downloadLogs);
+
+        toggleAdminUI();
+    </script>
+</body>
+</html>

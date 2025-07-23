@@ -34,8 +34,11 @@
         button.approve:hover { background-color: #45a049; }
         button.decline { background-color: #f44336; }
         button.decline:hover { background-color: #da190b; }
+        button.edit { background-color: #FFC107; }
+        button.edit:hover { background-color: #FFB300; }
         form { margin-bottom: 20px; }
         input, select, textarea { padding: 6px; margin-right: 10px; }
+        input.edit-input { width: 100px; }
         #loginSection { margin-bottom: 20px; border: 1px solid #ddd; padding: 10px; background: rgba(255,255,255,0.9); }
         #officerTools, #clearLogs { display: none; }
         .admin-only { display: none; }
@@ -197,6 +200,53 @@
             requestsRef.set(requests);
         }
 
+        function updateItemName(id) {
+            if (!isAdmin) return;
+            const item = inventory[id];
+            if (!item) return;
+            const input = document.getElementById(`name-input-${id}`);
+            const newName = input.value.trim();
+            if (!newName) {
+                alert('Item name cannot be empty.');
+                return;
+            }
+            if (Object.values(inventory).some(i => i.id !== id && i.name.toLowerCase() === newName.toLowerCase())) {
+                alert('An item with this name already exists. Please use a unique name.');
+                return;
+            }
+            item.name = newName;
+            // Update all related requests with the new item name
+            Object.values(requests).forEach(req => {
+                if (req.itemId === id) {
+                    req.item = newName;
+                }
+            });
+            saveInventory();
+            saveRequests();
+            renderInventory();
+            renderLogs();
+        }
+
+        function updateTotalInventory(id) {
+            if (!isAdmin) return;
+            const item = inventory[id];
+            if (!item) return;
+            const input = document.getElementById(`quantity-input-${id}`);
+            const newQuantity = parseInt(input.value);
+            if (isNaN(newQuantity) || newQuantity < 0) {
+                alert('Total inventory must be a non-negative number.');
+                return;
+            }
+            const available = item.quantity - item.inUse - item.damaged;
+            if (newQuantity < item.inUse + item.damaged) {
+                alert(`Total inventory cannot be less than in-use (${item.inUse}) plus damaged (${item.damaged}).`);
+                return;
+            }
+            item.quantity = newQuantity;
+            saveInventory();
+            renderInventory();
+        }
+
         function renderInventory() {
             const tbody = document.querySelector('#inventoryTable tbody');
             tbody.innerHTML = '';
@@ -210,7 +260,13 @@
                 const available = item.quantity - item.inUse - item.damaged;
                 const row = document.createElement('tr');
                 let actionButtons = '';
+                let nameCell = item.name;
+                let quantityCell = item.quantity;
                 if (isAdmin) {
+                    nameCell = `<input type="text" id="name-input-${item.id}" class="edit-input" value="${item.name}">
+                                <button class="edit" onclick="updateItemName(${item.id})">Save</button>`;
+                    quantityCell = `<input type="number" id="quantity-input-${item.id}" class="edit-input" value="${item.quantity}" min="0">
+                                   <button class="edit" onclick="updateTotalInventory(${item.id})">Save</button>`;
                     actionButtons += `<button onclick="resetItem(${item.id})" ${item.inUse === 0 ? 'disabled' : ''}>Mark Available</button> `;
                     actionButtons += `<button class="reset" onclick="resetIndividualItem(${item.id})">Reset Values</button> `;
                     actionButtons += `<input type="number" id="damaged-input-${item.id}" min="0" max="${item.quantity}" placeholder="Set Damaged"> `;
@@ -222,10 +278,10 @@
                 const inUseCell = (item.inUse > 0 && isAdmin) ? `<a href="#" onclick="showInUseDetails(${item.id})">${item.inUse}</a>` : item.inUse;
                 const damagedCell = (item.damaged > 0 && isAdmin) ? `<a href="#" onclick="showDamagedDetails(${item.id})">${item.damaged}</a>` : item.damaged;
                 row.innerHTML = `
-                    <td>${item.name}</td>
+                    <td>${nameCell}</td>
                     <td class="admin-only ${isAdmin ? 'admin-visible' : ''}">${available > 0 ? 'Available' : 'Fully In Use'}</td>
                     <td class="admin-only ${isAdmin ? 'admin-visible' : ''}">${actionButtons}</td>
-                    <td>${item.quantity}</td>
+                    <td>${quantityCell}</td>
                     <td>${inUseCell}</td>
                     <td>${damagedCell}</td>
                     <td>${available}</td>

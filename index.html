@@ -34,6 +34,8 @@
         button.approve:hover { background-color: #45a049; }
         button.decline { background-color: #f44336; }
         button.decline:hover { background-color: #da190b; }
+        button.edit { background-color: #FFC107; }
+        button.edit:hover { background-color: #FFB300; }
         form { margin-bottom: 20px; }
         input, select, textarea { padding: 6px; margin-right: 10px; }
         #loginSection { margin-bottom: 20px; border: 1px solid #ddd; padding: 10px; background: rgba(255,255,255,0.9); }
@@ -120,6 +122,13 @@
                 <input type="number" id="newItemQuantity" placeholder="Quantity" min="1" required>
                 <button type="submit">Add Item</button>
             </form>
+            <form id="editForm" style="margin-top: 20px;">
+                <h3>Edit Item</h3>
+                <select id="editItemSelect"></select>
+                <input type="text" id="editItemName" placeholder="New Item Name" required>
+                <input type="number" id="editItemQuantity" placeholder="New Total Inventory" min="1" required>
+                <button type="submit">Update Item</button>
+            </form>
             <button id="resetAll">Mark All as Available</button>
         </div>
 
@@ -182,6 +191,7 @@
             };
             nextId = Math.max(...Object.keys(inventory).map(Number)) + 1;
             renderInventory();
+            populateEditSelect();
         });
 
         requestsRef.on('value', (snapshot) => {
@@ -195,6 +205,17 @@
 
         function saveRequests() {
             requestsRef.set(requests);
+        }
+
+        function populateEditSelect() {
+            const select = document.getElementById('editItemSelect');
+            select.innerHTML = '<option value="">Select Item to Edit</option>';
+            Object.values(inventory).forEach(item => {
+                const option = document.createElement('option');
+                option.value = item.id;
+                option.textContent = item.name;
+                select.appendChild(option);
+            });
         }
 
         function renderInventory() {
@@ -211,6 +232,7 @@
                 const row = document.createElement('tr');
                 let actionButtons = '';
                 if (isAdmin) {
+                    actionButtons += `<button class="edit" onclick="loadEditForm(${item.id})">Edit</button> `;
                     actionButtons += `<button onclick="resetItem(${item.id})" ${item.inUse === 0 ? 'disabled' : ''}>Mark Available</button> `;
                     actionButtons += `<button class="reset" onclick="resetIndividualItem(${item.id})">Reset Values</button> `;
                     actionButtons += `<input type="number" id="damaged-input-${item.id}" min="0" max="${item.quantity}" placeholder="Set Damaged"> `;
@@ -246,6 +268,48 @@
             document.getElementById('totalInUse').textContent = totalInUse;
             document.getElementById('totalDamaged').textContent = totalDamaged;
             document.getElementById('totalAvailable').textContent = totalAvailable;
+        }
+
+        function loadEditForm(id) {
+            const item = inventory[id];
+            if (item) {
+                document.getElementById('editItemSelect').value = id;
+                document.getElementById('editItemName').value = item.name;
+                document.getElementById('editItemQuantity').value = item.quantity;
+            }
+        }
+
+        function editItem(event) {
+            event.preventDefault();
+            if (!isAdmin) return;
+            const id = parseInt(document.getElementById('editItemSelect').value);
+            const newName = document.getElementById('editItemName').value.trim();
+            const newQuantity = parseInt(document.getElementById('editItemQuantity').value);
+            if (!id || !newName || isNaN(newQuantity) || newQuantity < 1) {
+                alert('Please select an item, enter a valid name, and a valid quantity.');
+                return;
+            }
+            const item = inventory[id];
+            if (!item) {
+                alert('Selected item not found.');
+                return;
+            }
+            if (newName.toLowerCase() !== item.name.toLowerCase() && Object.values(inventory).some(i => i.name.toLowerCase() === newName.toLowerCase() && i.id !== id)) {
+                alert('An item with this name already exists. Please use a unique name.');
+                return;
+            }
+            const minQuantity = item.inUse + item.damaged;
+            if (newQuantity < minQuantity) {
+                alert(`Total inventory cannot be less than items in use (${item.inUse}) plus damaged (${item.damaged}). Minimum: ${minQuantity}`);
+                return;
+            }
+            item.name = newName;
+            item.quantity = newQuantity;
+            saveInventory();
+            document.getElementById('editItemSelect').value = '';
+            document.getElementById('editItemName').value = '';
+            document.getElementById('editItemQuantity').value = '';
+            alert('Item updated successfully!');
         }
 
         function showInUseDetails(id) {
@@ -574,6 +638,7 @@
         document.getElementById('logout').addEventListener('click', logout);
         document.getElementById('requestForm').addEventListener('submit', requestItem);
         document.getElementById('addForm').addEventListener('submit', addItem);
+        document.getElementById('editForm').addEventListener('submit', editItem);
         document.getElementById('resetAll').addEventListener('click', resetAll);
         document.getElementById('clearLogs').addEventListener('click', clearLogs);
         document.getElementById('downloadExcel').addEventListener('click', downloadLogs);

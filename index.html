@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=0.5">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Sports Inventory Management</title>
     <style>
         body { 
@@ -14,10 +14,33 @@
             color: #333; 
         }
         h1, h2 { color: #333; text-shadow: 1px 1px 2px rgba(0,0,0,0.1); }
-        table { width: 100%; border-collapse: collapse; margin-bottom: 20px; box-shadow: 0 0 10px rgba(0,0,0,0.1); background: rgba(255,255,255,0.9); }
-        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        .table-wrapper {
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+        table { 
+            width: 100%; 
+            border-collapse: collapse; 
+            margin-bottom: 20px; 
+            box-shadow: 0 0 10px rgba(0,0,0,0.1); 
+            background: rgba(255,255,255,0.9); 
+            min-width: 800px; /* Ensure table is wide enough for content */
+        }
+        th, td { 
+            border: 1px solid #ddd; 
+            padding: 8px; 
+            text-align: left; 
+            white-space: nowrap; /* Prevent text wrapping */
+        }
         th { background-color: #f2f2f2; }
-        button { padding: 6px 12px; background-color: #4CAF50; color: white; border: none; cursor: pointer; box-shadow: 0 2px 5px rgba(0,0,0,0.2); }
+        button { 
+            padding: 6px 12px; 
+            background-color: #4CAF50; 
+            color: white; 
+            border: none; 
+            cursor: pointer; 
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2); 
+        }
         button:hover { background-color: #45a049; }
         button:disabled { background-color: #ccc; }
         button.delete { background-color: #f44336; }
@@ -35,19 +58,72 @@
         button.decline { background-color: #f44336; }
         button.decline:hover { background-color: #da190b; }
         form { margin-bottom: 20px; }
-        input, select, textarea { padding: 6px; margin-right: 10px; }
-        #loginSection { margin-bottom: 20px; border: 1px solid #ddd; padding: 10px; background: rgba(255,255,255,0.9); }
+        input, select, textarea { 
+            padding: 6px; 
+            margin-right: 10px; 
+            box-sizing: border-box; 
+        }
+        #loginSection { 
+            margin-bottom: 20px; 
+            border: 1px solid #ddd; 
+            padding: 10px; 
+            background: rgba(255,255,255,0.9); 
+        }
         #officerTools, #clearLogs { display: none; }
         .admin-only { display: none; }
         .admin-only.admin-visible { display: table-cell; }
-        .container { background: rgba(255,255,255,0.8); padding: 20px; border-radius: 10px; }
-        .institute-header { text-align: center; font-size: 1em; font-weight: bold; margin-bottom: 0; }
-        .office-header { text-align: center; font-size: 0.9em; font-weight: bold; margin-top: 0; }
-        .logo { display: block; margin: 0 auto 20px auto; max-width: 200px; width: 100%; height: auto; background-color: #ffffff; }
-        .dashboard { display: flex; justify-content: space-around; margin-bottom: 20px; }
-        .card { background: rgba(255,255,255,0.9); padding: 15px; border: 1px solid #ddd; border-radius: 8px; text-align: center; width: 20%; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        .container { 
+            background: rgba(255,255,255,0.8); 
+            padding: 20px; 
+            border-radius: 10px; 
+        }
+        .institute-header { 
+            text-align: center; 
+            font-size: 1em; 
+            font-weight: bold; 
+            margin-bottom: 0; 
+        }
+        .office-header { 
+            text-align: center; 
+            font-size: 0.9em; 
+            font-weight: bold; 
+            margin-top: 0; 
+        }
+        .logo { 
+            display: block; 
+            margin: 0 auto 20px auto; 
+            max-width: 200px; 
+            width: 100%; 
+            height: auto; 
+            background-color: #ffffff; 
+        }
+        .dashboard { 
+            display: flex; 
+            justify-content: space-around; 
+            margin-bottom: 20px; 
+            flex-wrap: wrap; 
+        }
+        .card { 
+            background: rgba(255,255,255,0.9); 
+            padding: 15px; 
+            border: 1px solid #ddd; 
+            border-radius: 8px; 
+            text-align: center; 
+            width: 20%; 
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1); 
+            margin-bottom: 10px; 
+        }
         .card h3 { margin: 0 0 5px; color: #333; }
         .card p { font-size: 1.0em; font-weight: bold; margin: 0; }
+        @media screen and (max-width: 600px) {
+            .card { width: 45%; }
+            table { font-size: 0.9em; }
+            th, td { padding: 6px; }
+            button, input, select, textarea { 
+                width: 100%; 
+                margin-bottom: 5px; 
+            }
+        }
     </style>
 </head>
 <body>
@@ -89,20 +165,22 @@
         </div>
 
         <h2>Item-wise Inventory Details</h2>
-        <table id="inventoryTable">
-            <thead>
-                <tr>
-                    <th>Item Name</th>
-                    <th class="admin-only">Current Status</th>
-                    <th class="admin-only">Action</th>
-                    <th>Total Inventory</th>
-                    <th>In Use</th>
-                    <th>Damaged</th>
-                    <th>Final Available Inventory</th>
-                </tr>
-            </thead>
-            <tbody></tbody>
-        </table>
+        <div class="table-wrapper">
+            <table id="inventoryTable">
+                <thead>
+                    <tr>
+                        <th>Item Name</th>
+                        <th class="admin-only">Current Status</th>
+                        <th class="admin-only">Action</th>
+                        <th>Total Inventory</th>
+                        <th>In Use</th>
+                        <th>Damaged</th>
+                        <th>Final Available Inventory</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
 
         <h2>Request an Item</h2>
         <form id="requestForm">
@@ -124,24 +202,26 @@
         </div>
 
         <h2>Request Logs</h2>
-        <table id="logTable">
-            <thead>
-                <tr>
-                    <th>Name of Requestor</th>
-                    <th>Contact Number</th>
-                    <th>Inventory Name</th>
-                    <th>Number of Quantity Requested</th>
-                    <th>Requested Date & Time</th>
-                    <th>Inventory Allotment Status</th>
-                    <th>OSA Remark</th>
-                    <th>Issued Number</th>
-                    <th>Submitted Date & Time</th>
-                    <th>Submission Status</th>
-                    <th>Action</th>
-                </tr>
-            </thead>
-            <tbody id="logTbody"></tbody>
-        </table>
+        <div class="table-wrapper">
+            <table id="logTable">
+                <thead>
+                    <tr>
+                        <th>Name of Requestor</th>
+                        <th>Contact Number</th>
+                        <th>Inventory Name</th>
+                        <th>Number of Quantity Requested</th>
+                        <th>Requested Date & Time</th>
+                        <th>Inventory Allotment Status</th>
+                        <th>OSA Remark</th>
+                        <th>Issued Number</th>
+                        <th>Submitted Date & Time</th>
+                        <th>Submission Status</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody id="logTbody"></tbody>
+            </table>
+        </div>
         <button id="clearLogs" class="delete">Clear All Logs</button>
         <button id="downloadExcel" class="download-excel" style="display: none;">Download Logs as Excel</button>
     </div>

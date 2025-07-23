@@ -1,10 +1,3 @@
-To resolve the issue where approving or declining requests for newly added inventory items does not update the "inUse" count correctly, I've updated the code to store the `itemId` in each request alongside the item name. This ensures that inventory updates (e.g., incrementing/decrementing `inUse`) reference the item by its unique ID rather than by name, avoiding any potential mismatches (e.g., due to case sensitivity, duplicates, or other edge cases). The display still uses the item name for readability.
-
-Existing requests without `itemId` will fallback to name-based lookup for backward compatibility, but new requests will use the ID.
-
-Here is the updated HTML code:
-
-```html
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -281,25 +274,24 @@ Here is the updated HTML code:
         function renderLogs() {
             const tbody = document.getElementById('logTbody');
             tbody.innerHTML = '';
-            const sortedRequests = Object.entries(requests).sort(([,a], [,b]) => (b.submittedDate || b.date) - (a.submittedDate || a.date)).map(([,req]) => req);
-            sortedRequests.forEach((req, index) => {
-                const key = Object.keys(requests)[index];
+            const sortedRequests = Object.entries(requests).sort(([,a], [,b]) => (b.submittedDate || b.date) - (a.submittedDate || a.date)).map(([key, req]) => ({ key, ...req }));
+            sortedRequests.forEach(req => {
                 const row = document.createElement('tr');
                 let actionUI = '';
                 if (isAdmin && req.allotmentStatus === 'Approval Pending') {
                     actionUI = `
-                        <button class="approve" onclick="updateAllotmentStatus('${key}', 'Approved')">Approve</button>
-                        <button class="decline" onclick="updateAllotmentStatus('${key}', 'Declined')">Decline</button>
-                        <textarea id="remark-${key}" placeholder="Enter remark"></textarea>
+                        <button class="approve" onclick="updateAllotmentStatus('${req.key}', 'Approved')">Approve</button>
+                        <button class="decline" onclick="updateAllotmentStatus('${req.key}', 'Declined')">Decline</button>
+                        <textarea id="remark-${req.key}" placeholder="Enter remark"></textarea>
                     `;
                 } else if (isAdmin && req.allotmentStatus === 'Approved' && !req.returned) {
                     actionUI = `
-                        <select id="status-${key}">
+                        <select id="status-${req.key}">
                             <option value="Working">Working Received</option>
                             <option value="Damaged">Damaged Received</option>
                         </select>
-                        <input id="damaged-${key}" type="number" min="1" max="${req.quantity}" style="display:none;" placeholder="Damaged Count">
-                        <button type="button" class="mark-submitted" onclick="markSubmitted('${key}')">Submit</button>
+                        <input id="damaged-${req.key}" type="number" min="1" max="${req.quantity}" style="display:none;" placeholder="Damaged Count">
+                        <button type="button" class="mark-submitted" onclick="markSubmitted('${req.key}')">Submit</button>
                     `;
                 }
                 let submissionStatus = '-';
@@ -322,11 +314,10 @@ Here is the updated HTML code:
             });
 
             // Add event listeners for select changes
-            Object.keys(requests).forEach((key, index) => {
-                const req = requests[key];
+            sortedRequests.forEach(req => {
                 if (isAdmin && req.allotmentStatus === 'Approved' && !req.returned) {
-                    const select = document.getElementById(`status-${key}`);
-                    const input = document.getElementById(`damaged-${key}`);
+                    const select = document.getElementById(`status-${req.key}`);
+                    const input = document.getElementById(`damaged-${req.key}`);
                     if (select && input) {
                         select.addEventListener('change', () => {
                             input.style.display = select.value === 'Damaged' ? 'inline' : 'none';
@@ -418,10 +409,19 @@ Here is the updated HTML code:
             req.allotmentStatus = status;
             req.adminRemark = remark;
             if (status === 'Approved') {
-                let item = req.itemId ? inventory[req.itemId] : Object.values(inventory).find(i => i.name === req.item);
+                const item = inventory[req.itemId];
                 if (item) {
-                    item.inUse += req.quantity;
-                    saveInventory();
+                    const available = item.quantity - item.inUse - item.damaged;
+                    if (available >= req.quantity) {
+                        item.inUse += req.quantity;
+                        saveInventory();
+                    } else {
+                        alert(`Not enough ${item.name} available. Available: ${available}`);
+                        return;
+                    }
+                } else {
+                    alert('Inventory item not found.');
+                    return;
                 }
             }
             requestsRef.child(key).update(req);
@@ -433,6 +433,9 @@ Here is the updated HTML code:
             const name = document.getElementById('newItemName').value.trim();
             const quantity = parseInt(document.getElementById('newItemQuantity').value);
             if (!name || quantity < 1) return alert('Enter a valid item name and quantity.');
+            if (Object.values(inventory).some(item => item.name.toLowerCase() === name.toLowerCase())) {
+                return alert('An item with this name already exists. Please use a unique name.');
+            }
             inventory[nextId] = { id: nextId, name, quantity, inUse: 0, damaged: 0 };
             nextId++;
             saveInventory();
@@ -483,6 +486,10 @@ Here is the updated HTML code:
 
         function deleteItem(id) {
             if (!isAdmin || !confirm('Are you sure you want to delete this item?')) return;
+            if (Object.values(requests).some(req => req.itemId === id && req.allotmentStatus === 'Approved' && !req.returned)) {
+                alert('Cannot delete item with active approved requests.');
+                return;
+            }
             delete inventory[id];
             saveInventory();
         }
@@ -511,7 +518,7 @@ Here is the updated HTML code:
             req.submittedDate = Date.now();
             req.status = status;
             req.damagedCount = damagedCount;
-            let item = req.itemId ? inventory[req.itemId] : Object.values(inventory).find(i => i.name === req.item);
+            const item = inventory[req.itemId];
             if (item) {
                 item.inUse -= req.quantity;
                 if (status === 'Damaged') {
@@ -563,4 +570,3 @@ Here is the updated HTML code:
     </script>
 </body>
 </html>
-```

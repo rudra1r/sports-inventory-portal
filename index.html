@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=0.5">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Sports Inventory Management</title>
     <style>
         body { 
@@ -40,6 +40,8 @@
         #officerTools, #clearLogs { display: none; }
         .admin-only { display: none; }
         .admin-only.admin-visible { display: table-cell; }
+        #inventoryTable { display: none; }
+        #inventoryTable.admin-visible-table { display: table; }
         .container { background: rgba(255,255,255,0.8); padding: 20px; border-radius: 10px; }
         .institute-header { text-align: center; font-size: 1em; font-weight: bold; margin-bottom: 0; }
         .office-header { text-align: center; font-size: 0.9em; font-weight: bold; margin-top: 0; }
@@ -336,6 +338,7 @@
             document.getElementById('downloadExcel').style.display = isAdmin ? 'block' : 'none';
             document.getElementById('logout').style.display = isAdmin ? 'block' : 'none';
             document.getElementById('loginForm').style.display = isAdmin ? 'none' : 'block';
+            document.getElementById('inventoryTable').classList.toggle('admin-visible-table', isAdmin);
             const adminColumns = document.querySelectorAll('.admin-only');
             adminColumns.forEach(col => {
                 col.classList.toggle('admin-visible', isAdmin);
@@ -520,65 +523,4 @@
             if (status === 'Damaged') {
                 const input = document.getElementById(`damaged-${key}`);
                 damagedCount = parseInt(input.value);
-                if (isNaN(damagedCount) || damagedCount < 1 || damagedCount > (req.issuedNumber || req.quantity)) {
-                    alert(`Damaged count must be between 1 and ${req.issuedNumber || req.quantity}`);
-                    return;
-                }
-            }
-            req.returned = true;
-            req.submittedDate = Date.now();
-            req.status = status;
-            req.damagedCount = damagedCount;
-            const item = inventory[req.itemId];
-            if (item) {
-                item.inUse -= (req.issuedNumber || req.quantity);
-                if (status === 'Damaged') {
-                    item.damaged += damagedCount;
-                }
-                saveInventory();
-            }
-            requestsRef.child(key).update(req);
-        }
-
-        function clearLogs() {
-            if (!isAdmin || !confirm('Are you sure you want to clear all logs?')) return;
-            requestsRef.set({});
-        }
-
-        function downloadLogs() {
-            let csvContent = 'Name of Requestor,Contact Number,Inventory Requested,Quantity Requested,Requested Date & Time,Inventory Allotment Status,Admin Remark,Issued Number,Submitted Date & Time,Submission Status\n';
-            const sortedRequests = Object.values(requests).sort((a, b) => (b.submittedDate || b.date) - (a.submittedDate || a.date));
-            sortedRequests.forEach(req => {
-                const requestedDate = req.date ? new Date(req.date).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }) : '-';
-                const submittedDate = req.submittedDate ? new Date(req.submittedDate).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }) : '-';
-                let submissionStatus = '-';
-                if (req.returned) {
-                    submissionStatus = req.status === 'Working' ? 'Working Received' : `Damaged Received (${req.damagedCount})`;
-                }
-                const issuedNumber = req.issuedNumber !== undefined ? req.issuedNumber : (req.allotmentStatus === 'Approved' ? req.quantity : '-');
-                csvContent += `"${req.name}","${req.contact}","${req.item}","${req.quantity}","${requestedDate}","${req.allotmentStatus || 'Approval Pending'}","${req.adminRemark || '-'}","${issuedNumber}","${submittedDate}","${submissionStatus}"\n`;
-            });
-            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-            const url = URL.createObjectURL(blob);
-            const link = document.createElement('a');
-            link.href = url;
-            link.download = 'request_logs.csv';
-            link.style.display = 'none';
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-            URL.revokeObjectURL(url);
-        }
-
-        document.getElementById('loginForm').addEventListener('submit', login);
-        document.getElementById('logout').addEventListener('click', logout);
-        document.getElementById('requestForm').addEventListener('submit', requestItem);
-        document.getElementById('addForm').addEventListener('submit', addItem);
-        document.getElementById('resetAll').addEventListener('click', resetAll);
-        document.getElementById('clearLogs').addEventListener('click', clearLogs);
-        document.getElementById('downloadExcel').addEventListener('click', downloadLogs);
-
-        toggleAdminUI();
-    </script>
-</body>
-</html>
+                if (isNaN(damagedCount) || damagedCount < 1 || damagedCount > (req

@@ -1,3 +1,10 @@
+To resolve the issue where approving or declining requests for newly added inventory items does not update the "inUse" count correctly, I've updated the code to store the `itemId` in each request alongside the item name. This ensures that inventory updates (e.g., incrementing/decrementing `inUse`) reference the item by its unique ID rather than by name, avoiding any potential mismatches (e.g., due to case sensitivity, duplicates, or other edge cases). The display still uses the item name for readability.
+
+Existing requests without `itemId` will fallback to name-based lookup for backward compatibility, but new requests will use the ID.
+
+Here is the updated HTML code:
+
+```html
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -250,7 +257,7 @@
         function showInUseDetails(id) {
             const item = inventory[id];
             if (!item) return;
-            const pending = Object.values(requests).filter(r => r.item === item.name && r.allotmentStatus === 'Approved' && !r.returned);
+            const pending = Object.values(requests).filter(r => r.itemId === id && r.allotmentStatus === 'Approved' && !r.returned);
             if (pending.length === 0) {
                 alert('No items currently in use.');
                 return;
@@ -262,7 +269,7 @@
         function showDamagedDetails(id) {
             const item = inventory[id];
             if (!item) return;
-            const damagedReqs = Object.values(requests).filter(r => r.item === item.name && r.returned && r.status === 'Damaged');
+            const damagedReqs = Object.values(requests).filter(r => r.itemId === id && r.returned && r.status === 'Damaged');
             if (damagedReqs.length === 0) {
                 alert('No damaged items recorded from requests. (Note: Manual damages may not have associated user details.)');
                 return;
@@ -377,6 +384,7 @@
             if (item && available >= quantity) {
                 const newReq = {
                     item: item.name,
+                    itemId: id,
                     quantity,
                     name,
                     contact,
@@ -410,7 +418,7 @@
             req.allotmentStatus = status;
             req.adminRemark = remark;
             if (status === 'Approved') {
-                const item = Object.values(inventory).find(i => i.name === req.item);
+                let item = req.itemId ? inventory[req.itemId] : Object.values(inventory).find(i => i.name === req.item);
                 if (item) {
                     item.inUse += req.quantity;
                     saveInventory();
@@ -503,7 +511,7 @@
             req.submittedDate = Date.now();
             req.status = status;
             req.damagedCount = damagedCount;
-            const item = Object.values(inventory).find(i => i.name === req.item);
+            let item = req.itemId ? inventory[req.itemId] : Object.values(inventory).find(i => i.name === req.item);
             if (item) {
                 item.inUse -= req.quantity;
                 if (status === 'Damaged') {
@@ -555,3 +563,4 @@
     </script>
 </body>
 </html>
+```

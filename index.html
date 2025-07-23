@@ -48,10 +48,37 @@
         .institute-header { text-align: center; font-size: 1em; font-weight: bold; margin-bottom: 0; }
         .office-header { text-align: center; font-size: 0.9em; font-weight: bold; margin-top: 0; }
         .logo { display: block; margin: 0 auto 20px auto; max-width: 200px; width: 100%; height: auto; background-color: #ffffff; }
-        .dashboard { display: flex; justify-content: space-around; margin-bottom: 20px; }
-        .card { background: rgba(255,255,255,0.9); padding: 15px; border: 1px solid #ddd; border-radius: 8px; text-align: center; width: 20%; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        .dashboard { 
+            display: flex; 
+            justify-content: space-around; 
+            flex-wrap: nowrap; 
+            gap: 10px; 
+            margin-bottom: 20px; 
+        }
+        .card { 
+            background: rgba(255,255,255,0.9); 
+            padding: 15px; 
+            border: 1px solid #ddd; 
+            border-radius: 8px; 
+            text-align: center; 
+            flex: 1; 
+            min-width: 150px; 
+            max-width: 22%; 
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1); 
+        }
         .card h3 { margin: 0 0 5px; color: #333; }
         .card p { font-size: 1.0em; font-weight: bold; margin: 0; }
+        @media (max-width: 768px) {
+            .dashboard { 
+                flex-direction: row; 
+                flex-wrap: nowrap; 
+                overflow-x: auto; 
+            }
+            .card { 
+                min-width: 120px; 
+                max-width: 25%; 
+            }
+        }
     </style>
 </head>
 <body>

@@ -253,6 +253,10 @@
             if (!item) return;
             const select = document.getElementById(`status-select-${id}`);
             const newStatus = select.value;
+            if (newStatus !== 'Available' && newStatus !== 'Unavailable') {
+                alert('Invalid status selected.');
+                return;
+            }
             item.status = newStatus;
             saveInventory();
             renderInventory();
@@ -279,10 +283,11 @@
                                 <button class="edit" onclick="updateItemName(${item.id})">Save</button>`;
                     quantityCell = `<input type="number" id="quantity-input-${item.id}" class="edit-input" value="${item.quantity}" min="0">
                                    <button class="edit" onclick="updateTotalInventory(${item.id})">Save</button>`;
-                    statusCell = `<select id="status-select-${item.id}" class="status-select" onchange="updateItemStatus(${item.id})">
+                    statusCell = `<select id="status-select-${item.id}" class="status-select">
                                     <option value="Available" ${item.status === 'Available' ? 'selected' : ''}>Available</option>
                                     <option value="Unavailable" ${item.status === 'Unavailable' ? 'selected' : ''}>Unavailable</option>
-                                  </select>`;
+                                  </select>
+                                  <button class="edit" onclick="updateItemStatus(${item.id})">Save</button>`;
                     actionButtons += `<button onclick="resetItem(${item.id})" ${item.inUse === 0 ? 'disabled' : ''}>Mark Available</button> `;
                     actionButtons += `<button class="reset" onclick="resetIndividualItem(${item.id})">Reset Values</button> `;
                     actionButtons += `<input type="number" id="damaged-input-${item.id}" min="0" max="${item.quantity}" placeholder="Set Damaged"> `;
@@ -303,7 +308,7 @@
                     <td>${available}</td>
                 `;
                 tbody.appendChild(row);
-                if (item.status !== 'Unavailable' && available > 0) {
+                if (item.status === 'Available' && available > 0) {
                     const option = document.createElement('option');
                     option.value = item.id;
                     option.textContent = `${item.name} (Available: ${available})`;
@@ -447,7 +452,7 @@
             }
             const item = inventory[id];
             const available = item.quantity - item.inUse - item.damaged;
-            if (item && item.status !== 'Unavailable' && available >= quantity) {
+            if (item && item.status === 'Available' && available >= quantity) {
                 const newReq = {
                     item: item.name,
                     itemId: id,
@@ -492,7 +497,7 @@
                 const item = inventory[req.itemId];
                 if (item) {
                     const available = item.quantity - item.inUse - item.damaged;
-                    if (available >= issuedNumber && item.status !== 'Unavailable') {
+                    if (available >= issuedNumber && item.status === 'Available') {
                         item.inUse += issuedNumber;
                         saveInventory();
                     } else {

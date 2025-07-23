@@ -14,9 +14,24 @@
             color: #333; 
         }
         h1, h2 { color: #333; text-shadow: 1px 1px 2px rgba(0,0,0,0.1); }
-        table { width: 100%; border-collapse: collapse; margin-bottom: 20px; box-shadow: 0 0 10px rgba(0,0,0,0.1); background: rgba(255,255,255,0.9); }
-        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        table { 
+            width: 100%; 
+            border-collapse: collapse; 
+            margin-bottom: 20px; 
+            box-shadow: 0 0 10px rgba(0,0,0,0.1); 
+            background: rgba(255,255,255,0.9); 
+            table-layout: fixed; 
+        }
+        th, td { 
+            border: 1px solid #ddd; 
+            padding: 8px; 
+            text-align: left; 
+            overflow: hidden; 
+            text-overflow: ellipsis; 
+        }
         th { background-color: #f2f2f2; }
+        th:nth-child(2), td:nth-child(2) { min-width: 100px; } /* Current Status column */
+        th:nth-child(3), td:nth-child(3) { min-width: 200px; } /* Action column */
         button { padding: 6px 12px; background-color: #4CAF50; color: white; border: none; cursor: pointer; box-shadow: 0 2px 5px rgba(0,0,0,0.2); }
         button:hover { background-color: #45a049; }
         button:disabled { background-color: #ccc; }
@@ -77,6 +92,14 @@
             .card { 
                 min-width: 120px; 
                 max-width: 25%; 
+            }
+            table { 
+                overflow-x: auto; 
+                display: block; 
+            }
+            th, td { 
+                min-width: 80px; 
+                word-wrap: break-word; 
             }
         }
     </style>
